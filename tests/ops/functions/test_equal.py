@@ -317,63 +317,77 @@ equal_pauli_operators = [
 ]
 
 
-def test_assert_equal_types():
-    """Test that assert equal raises if the operator types are different."""
+class TestEqualAndAssertEqual:
+    @pytest.fixture(autouse=True)
+    def setup_simultaneous_test_equal_assert_equal(self):
+        def inner_test(regex=None, *args, **kwargs):
+            if regex is None:
+                assert qml.equal(*args, **kwargs) and assert_equal(*args, **kwargs) is None
+            else:
+                with pytest.raises(AssertionError, match=regex):
+                    assert_equal(*args, **kwargs)
 
-    op1 = qml.S(0)
-    op2 = qml.T(0)
-    with pytest.raises(AssertionError, match="op1 and op2 are of different types"):
-        assert_equal(op1, op2)
+                assert not qml.equal(*args, **kwargs)
 
+        self.simultaneous_test_equal_assert_equal = inner_test
 
-def test_assert_equal_unspecified():
+    def test_assert_equal_types(self):
+        """Test that assert equal raises if the operator types are different."""
 
-    # pylint: disable=too-few-public-methods
-    class RandomType:
-        """dummy type"""
+        op1 = qml.S(0)
+        op2 = qml.T(0)
+        with pytest.raises(AssertionError, match="are of different types"):
+            assert_equal(op1, op2)
 
-        def __init__(self):
-            pass
+    def test_assert_equal_unspecified(self):
 
-    # pylint: disable=unused-argument
-    @_equal.register
-    def _(op1: RandomType, op2, **_):
-        """always returns false"""
-        return False
+        # pylint: disable=too-few-public-methods
+        class RandomType:
+            """dummy type"""
 
-    with pytest.raises(AssertionError, match=r"for an unspecified reason"):
-        assert_equal(RandomType(), RandomType())
+            def __init__(self):
+                pass
 
+        # pylint: disable=unused-argument
+        @_equal.register
+        def _(op1: RandomType, op2, **_):
+            """always returns false"""
+            return False
 
-class TestEqual:
+        with pytest.raises(AssertionError, match=r"for an unspecified reason"):
+            assert_equal(RandomType(), RandomType())
+
     @pytest.mark.parametrize("ops", PARAMETRIZED_OPERATIONS_COMBINATIONS)
     def test_equal_simple_diff_op(self, ops):
         """Test different operators return False"""
-        assert not qml.equal(ops[0], ops[1], check_trainability=False, check_interface=False)
+        self.simultaneous_test_equal_assert_equal(r"are of different types", ops[0], ops[1], check_trainability=False, check_interface=False)
 
     @pytest.mark.parametrize("op1", PARAMETRIZED_OPERATIONS)
     def test_equal_simple_same_op(self, op1):
         """Test same operators return True"""
-        assert qml.equal(op1, op1, check_trainability=False, check_interface=False)
+        self.simultaneous_test_equal_assert_equal(None, op1, op1, check_trainability=False, check_interface=False)
 
     @pytest.mark.parametrize("op1", PARAMETRIZED_OPERATIONS_1P_1W)
     def test_equal_simple_op_1p1w(self, op1):
         """Test changing parameter or wire returns False"""
         wire = 0
         param = 0.123
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire),
             op1(param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, wires=wire),
             op1(param * 2, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, wires=wire),
             op1(param, wires=wire + 1),
             check_trainability=False,
@@ -398,13 +412,15 @@ class TestEqual:
 
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
@@ -413,13 +429,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=True,
@@ -444,13 +462,15 @@ class TestEqual:
 
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
@@ -459,13 +479,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=True,
@@ -477,19 +499,26 @@ class TestEqual:
         """Test changing parameter or wire returns False"""
         wire = [0, 1]
         param = 0.123
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire),
             op1(param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, wires=wire),
             op1(param * 2, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        if issubclass(op1, Controlled):
+            regex = r"have different configuration for their controls"
+        else:
+            regex = "don't act on the same wires"
+        self.simultaneous_test_equal_assert_equal(
+            regex,
             op1(param, wires=wire),
             op1(param, wires=[w + 1 for w in wire]),
             check_trainability=False,
@@ -514,13 +543,15 @@ class TestEqual:
 
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
@@ -529,13 +560,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=True,
@@ -547,19 +580,22 @@ class TestEqual:
         """Test changing parameter or wire returns False"""
         wire = [0, 1, 2, 3]
         param = 0.123
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire),
             op1(param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, wires=wire),
             op1(param * 2, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, wires=wire),
             op1(param, wires=[w + 1 for w in wire]),
             check_trainability=False,
@@ -584,13 +620,15 @@ class TestEqual:
 
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1[0], p1[1], p1[2], wires=wire),
                 op1(p2[0], p2[1], p2[2], wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1[0], p1[1], p1[2], wires=wire),
                 op1(p2[0], p2[1], p2[2], wires=wire),
                 check_trainability=False,
@@ -599,13 +637,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(*param_qml, wires=wire),
             op1(*param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(*param_qml, wires=wire),
             op1(*param_qml_1, wires=wire),
             check_trainability=True,
@@ -617,19 +657,22 @@ class TestEqual:
         """Test changing parameter or wire returns False"""
         wire = 0
         param = [0.123] * 3
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(*param, wires=wire),
             op1(*param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(*param, wires=wire),
             op1(*param, wires=wire + 1),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(*param, wires=wire),
             op1(param[0] * 2, param[1], param[2], wires=wire),
             check_trainability=False,
@@ -655,13 +698,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_2P_1W[0]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1[0], p1[1], wires=wire),
                 op1(p2[0], p2[1], wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1[0], p1[1], wires=wire),
                 op1(p2[0], p2[1], wires=wire),
                 check_trainability=False,
@@ -670,13 +715,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(*param_qml, wires=wire),
             op1(*param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(*param_qml, wires=wire),
             op1(*param_qml_1, wires=wire),
             check_trainability=True,
@@ -693,13 +740,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_1P_3W[0]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
@@ -708,13 +757,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=True,
@@ -731,13 +782,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_3P_2W[0]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1[0], p1[1], p1[2], wires=wire),
                 op1(p2[0], p2[1], p2[2], wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1[0], p1[1], p1[2], wires=wire),
                 op1(p2[0], p2[1], p2[2], wires=wire),
                 check_trainability=False,
@@ -746,13 +799,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(*param_qml, wires=wire),
             op1(*param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(*param_qml, wires=wire),
             op1(*param_qml_1, wires=wire),
             check_trainability=True,
@@ -769,13 +824,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_Remaining[0]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, "Y", wires=wire),
                 op1(p2, "Y", wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, "Y", wires=wire),
                 op1(p2, "Y", wires=wire),
                 check_trainability=False,
@@ -784,13 +841,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, "Y", wires=wire),
             op1(param_qml_1, "Y", wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, "Y", wires=wire),
             op1(param_qml_1, "Y", wires=wire),
             check_trainability=True,
@@ -807,13 +866,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_Remaining[1]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
@@ -822,13 +883,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=True,
@@ -845,13 +908,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_Remaining[2]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire),
                 op1(p2, wires=wire),
                 check_trainability=False,
@@ -860,13 +925,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire),
             op1(param_qml_1, wires=wire),
             check_trainability=True,
@@ -883,13 +950,15 @@ class TestEqual:
         op1 = PARAMETRIZED_OPERATIONS_Remaining[3]
         param_list = [param_qml, param_torch, param_jax, param_tf, param_np]
         for p1, p2 in itertools.combinations(param_list, 2):
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(p1, wires=wire, control_wires=wire + 1),
                 op1(p2, wires=wire, control_wires=wire + 1),
                 check_trainability=False,
                 check_interface=False,
             )
-            assert not qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                r"have some parameters with a different interface",
                 op1(p1, wires=wire, control_wires=wire + 1),
                 op1(p2, wires=wire, control_wires=wire + 1),
                 check_trainability=False,
@@ -898,13 +967,15 @@ class TestEqual:
 
         param_qml_1 = param_qml.copy()
         param_qml_1.requires_grad = False
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param_qml, wires=wire, control_wires=wire + 1),
             op1(param_qml_1, wires=wire, control_wires=wire + 1),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have parameters having not the same requirements from a trainability point of view",
             op1(param_qml, wires=wire, control_wires=wire + 1),
             op1(param_qml_1, wires=wire, control_wires=wire + 1),
             check_trainability=True,
@@ -916,19 +987,22 @@ class TestEqual:
         wire = 0
         param = [0.123] * 2
         op1 = PARAMETRIZED_OPERATIONS_2P_1W[0]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(*param, wires=wire),
             op1(*param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(*param, wires=wire),
             op1(*param, wires=wire + 1),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(*param, wires=wire),
             op1(param[0] * 2, param[1], wires=wire),
             check_trainability=False,
@@ -938,19 +1012,22 @@ class TestEqual:
         wire = [1, 2, 3]
         param = 0.123
         op1 = PARAMETRIZED_OPERATIONS_1P_3W[0]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire),
             op1(param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, wires=wire),
             op1(param * 2, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, wires=wire),
             op1(param, wires=[w + 1 for w in wire]),
             check_trainability=False,
@@ -960,19 +1037,22 @@ class TestEqual:
         wire = [1, 2]
         param = [0.123] * 3
         op1 = PARAMETRIZED_OPERATIONS_3P_2W[0]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(*param, wires=wire),
             op1(*param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different configuration for their controls",
             op1(*param, wires=wire),
             op1(*param, wires=[w + 1 for w in wire]),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(*param, wires=wire),
             op1(param[0] * 2, param[1], param[2], wires=wire),
             check_trainability=False,
@@ -982,25 +1062,29 @@ class TestEqual:
         wire = 0
         param = 0.123
         op1 = PARAMETRIZED_OPERATIONS_Remaining[0]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, "Y", wires=wire),
             op1(param, "Y", wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, "Y", wires=wire),
             op1(param * 2, "Y", wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, "Y", wires=wire),
             op1(param, "Y", wires=wire + 1),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't have the same hyperparameters",
             op1(param, "Y", wires=wire),
             op1(param, "Z", wires=wire),
             check_trainability=False,
@@ -1010,19 +1094,22 @@ class TestEqual:
         wire = 0
         param = np.eye(2) * 1j
         op1 = PARAMETRIZED_OPERATIONS_Remaining[1]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire),
             op1(param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, wires=wire),
             op1(param * 2, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, wires=wire),
             op1(param, wires=wire + 1),
             check_trainability=False,
@@ -1032,19 +1119,22 @@ class TestEqual:
         wire = 0
         param = np.array([1.0, 1.0j])
         op1 = PARAMETRIZED_OPERATIONS_Remaining[2]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire),
             op1(param, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            "have different coefficients",
             op1(param, wires=wire),
             op1(param * 2, wires=wire),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, wires=wire),
             op1(param, wires=wire + 1),
             check_trainability=False,
@@ -1054,19 +1144,22 @@ class TestEqual:
         wire = 0
         param = np.eye(2) * 1j
         op1 = PARAMETRIZED_OPERATIONS_Remaining[3]
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(param, wires=wire, control_wires=wire + 1),
             op1(param, wires=wire, control_wires=wire + 1),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"have different coefficients",
             op1(param, wires=wire, control_wires=wire + 1),
             op1(param * 2, wires=wire, control_wires=wire + 1),
             check_trainability=False,
             check_interface=False,
         )
-        assert not qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            r"don't act on the same wires",
             op1(param, wires=wire, control_wires=wire + 1),
             op1(param, wires=wire + 2, control_wires=wire + 1),
             check_trainability=False,
@@ -1112,11 +1205,13 @@ class TestEqual:
             operation2 = op1(other_tensor, wires=1)
             if isinstance(other_tensor, tf.Variable):
                 with tf.GradientTape():
-                    assert qml.equal(
+                    self.simultaneous_test_equal_assert_equal(
+                        None,
                         operation1, operation2, check_interface=False, check_trainability=True
                     )
             else:
-                assert qml.equal(
+                self.simultaneous_test_equal_assert_equal(
+                    None,
                     operation1, operation2, check_interface=False, check_trainability=True
                 )
             return x
@@ -1128,7 +1223,8 @@ class TestEqual:
         # TF and Autograd
         # ------------------
         with tf.GradientTape():
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(tf_tensor, wires=wire),
                 op1(pl_tensor, wires=wire),
                 check_trainability=True,
@@ -1138,7 +1234,8 @@ class TestEqual:
         # TF and Torch
         # ------------------
         with tf.GradientTape():
-            assert qml.equal(
+            self.simultaneous_test_equal_assert_equal(
+                None,
                 op1(tf_tensor, wires=wire),
                 op1(torch_tensor, wires=wire),
                 check_trainability=True,
@@ -1147,7 +1244,8 @@ class TestEqual:
 
         # Autograd and Torch
         # ------------------
-        assert qml.equal(
+        self.simultaneous_test_equal_assert_equal(
+            None,
             op1(pl_tensor, wires=wire),
             op1(torch_tensor, wires=wire),
             check_trainability=True,
@@ -1158,7 +1256,7 @@ class TestEqual:
         """Test equal method with two operators with different arithmetic depth."""
         op1 = qml.RX(0.3, wires=0)
         op2 = qml.prod(op1, qml.RY(0.25, wires=1))
-        assert not qml.equal(op1, op2)
+        self.simultaneous_test_equal_assert_equal(r"are of different types", op1, op2)
 
     def test_equal_with_unsupported_nested_operators_returns_false(self):
         """Test that the equal method with two operators with the same arithmetic depth (>0) returns
@@ -1171,7 +1269,7 @@ class TestEqual:
         assert op1.arithmetic_depth == op2.arithmetic_depth
         assert op1.arithmetic_depth > 0
 
-        assert not qml.equal(op1, op2)
+        self.simultaneous_test_equal_assert_equal(r"are two operators with the same, non-zero arithmetic depth", op1, op2)
 
     # Measurements test cases
     @pytest.mark.parametrize("ops", PARAMETRIZED_MEASUREMENTS_COMBINATIONS)
@@ -1363,6 +1461,13 @@ class TestObservablesComparisons:
         assert qml.equal(I2, I4)
         assert qml.equal(I3, I4)
 
+        assert assert_equal(I1, I2) is None
+        assert assert_equal(I1, I3) is None
+        assert assert_equal(I1, I4) is None
+        assert assert_equal(I2, I3) is None
+        assert assert_equal(I2, I4) is None
+        assert assert_equal(I3, I4) is None
+
     @pytest.mark.parametrize(("H1", "H2", "res"), equal_hamiltonians)
     def test_hamiltonian_equal(self, H1, H2, res):
         """Tests that equality can be checked between Hamiltonians"""
@@ -1373,11 +1478,29 @@ class TestObservablesComparisons:
         assert qml.equal(H1, H2) == qml.equal(H2, H1)
         assert qml.equal(H1, H2) == res
 
+        if res:
+            assert assert_equal(H1, H2) is None
+            assert assert_equal(H2, H1) is None
+        else:
+            with pytest.raises(AssertionError):
+                assert_equal(H1, H2)
+            with pytest.raises(AssertionError):
+                assert_equal(H2, H1)
+
     @pytest.mark.parametrize(("T1", "T2", "res"), equal_tensors)
     def test_tensors_equal(self, T1, T2, res):
         """Tests that equality can be checked between Tensors"""
         assert qml.equal(T1, T2) == qml.equal(T2, T1)
         assert qml.equal(T1, T2) == res
+
+        if res:
+            assert assert_equal(T1, T2) is None
+            assert assert_equal(T2, T1) is None
+        else:
+            with pytest.raises(AssertionError):
+                assert_equal(T1, T2)
+            with pytest.raises(AssertionError):
+                assert_equal(T2, T1)
 
     @pytest.mark.parametrize(("H", "T", "res"), equal_hamiltonians_and_tensors)
     def test_hamiltonians_and_tensors_equal(self, H, T, res):
@@ -1388,6 +1511,15 @@ class TestObservablesComparisons:
 
         assert qml.equal(H, T) == qml.equal(T, H)
         assert qml.equal(H, T) == res
+
+        if res:
+            assert assert_equal(H, T) is None
+            assert assert_equal(T, H) is None
+        else:
+            with pytest.raises(AssertionError, match=r"are of different types"):
+                assert_equal(T, H)
+            with pytest.raises(AssertionError, match=r"are of different types"):
+                assert_equal(H, T)
 
     @pytest.mark.parametrize(("op1", "op2", "res"), equal_pauli_operators)
     def test_pauli_operator_equals(self, op1, op2, res):
